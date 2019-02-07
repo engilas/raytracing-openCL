@@ -59,19 +59,6 @@ static const float texcords[8] =
 
 static const uint indices[6] = {0,1,2,0,2,3};
 
-static const float CJULIA[] = {
-    -0.700f, 0.270f,
-    -0.618f, 0.000f,
-    -0.400f, 0.600f,
-     0.285f, 0.000f,
-     0.285f, 0.010f,
-     0.450f, 0.143f,
-    -0.702f,-0.384f,
-    -0.835f,-0.232f,
-    -0.800f, 0.156f,
-     0.279f, 0.000f
-};
-
 static int wind_width = 720;
 static int wind_height= 720;
 static int gJuliaSetIndex = 0;
@@ -118,14 +105,16 @@ render_params rparams;
 
 rt_scene create_scene(int width, int height, cl_float4 camera_pos, cl_float4 bg_color, int sphere_count)
 {
-    rt_scene result;
+	auto min = width > height ? height : width;
+
+	rt_scene result;
     memset(&result, 0, sizeof(rt_scene));
     result.camera_pos = camera_pos;
     result.canvas_height = height;
     result.canvas_width = width;
     result.viewport_dist = 1;
-    result.viewport_height = 1;
-    result.viewport_width = 1;
+    result.viewport_height = height / (cl_float) min;
+    result.viewport_width = width / (cl_float) min;
     result.bg_color = bg_color;
     result.sphere_count = sphere_count;
 
@@ -148,29 +137,27 @@ static void glfw_error_callback(int error, const char* desc)
     fputs(desc,stderr);
 }
 
+bool w_pressed = false;
+bool a_pressed = false;
+bool s_pressed = false;
+bool d_pressed = false;
+
 static void glfw_key_callback(GLFWwindow* wind, int key, int scancode, int action, int mods)
 {
-    if (action == GLFW_PRESS) {
-        if (key == GLFW_KEY_ESCAPE)
-            glfwSetWindowShouldClose(wind, GL_TRUE);
-        else if (key == GLFW_KEY_1)
-            gJuliaSetIndex = 0;
-        else if (key == GLFW_KEY_2)
-            gJuliaSetIndex = 1;
-        else if (key == GLFW_KEY_3)
-            gJuliaSetIndex = 2;
-        else if (key == GLFW_KEY_4)
-            gJuliaSetIndex = 3;
-        else if (key == GLFW_KEY_5)
-            gJuliaSetIndex = 4;
-        else if (key == GLFW_KEY_6)
-            gJuliaSetIndex = 5;
-        else if (key == GLFW_KEY_7)
-            gJuliaSetIndex = 6;
-        else if (key == GLFW_KEY_8)
-            gJuliaSetIndex = 7;
-        else if (key == GLFW_KEY_9)
-            gJuliaSetIndex = 8;
+    if (action == GLFW_PRESS || action == GLFW_RELEASE) {
+		if (key == GLFW_KEY_ESCAPE)
+			glfwSetWindowShouldClose(wind, GL_TRUE);
+
+		bool pressed = action == GLFW_PRESS;
+
+		if (key == GLFW_KEY_W)
+			w_pressed = pressed;
+		else if (key == GLFW_KEY_S)
+			s_pressed = pressed;
+		else if (key == GLFW_KEY_A)
+			a_pressed = pressed;
+		else if (key == GLFW_KEY_D)
+			d_pressed = pressed;
     }
 }
 
@@ -198,19 +185,19 @@ int main()
 
     wind_width  = mode->width;
     wind_height = mode->height;
-    wind_width = 600;
+    wind_width = 800;
     wind_height = 600;
 
     GLFWwindow* window;
 
     glfwSetErrorCallback(glfw_error_callback);
 
-    window = glfwCreateWindow(wind_width,wind_height,"Julia Sets",NULL,NULL);
+    window = glfwCreateWindow(wind_width,wind_height,"Julia Sets", NULL,NULL);
     if (!window) {
         glfwTerminate();
         return 254;
     }
-
+	
     glfwMakeContextCurrent(window);
 
     if(!gladLoadGL()) {
@@ -325,6 +312,8 @@ int main()
     int frames_count = 0;
     srand(time(nullptr));
 
+	glfwSwapInterval(0);
+
     while (!glfwWindowShouldClose(window)) {
         
         ++frames_count;
@@ -380,10 +369,19 @@ void processTimeStep()
         //NDRange local(16, 16);
         NDRange global(wind_width, wind_height);
 
-        spheres[1].color.s0 = (cl_float)rand() / (cl_float)RAND_MAX ;
-        spheres[1].color.s1 = (cl_float)rand() / (cl_float)RAND_MAX ;
-        spheres[1].color.s2 =(cl_float)rand() / (cl_float)RAND_MAX ;
-        spheres[1].center.s0 += 0.001;
+		//params.scene.camera_pos.s0 += 0.001;
+        //spheres[1].center.s0 += 0.001;
+
+		if (w_pressed)
+			params.scene.camera_pos.z += 0.001;
+		if (a_pressed)
+			params.scene.camera_pos.x -= 0.001;
+		if (s_pressed)
+			params.scene.camera_pos.z -= 0.001;
+		if (d_pressed)
+			params.scene.camera_pos.x += 0.001;
+
+		params.k.setArg(0, params.scene);
         params.q.enqueueWriteBuffer(params.spheres, CL_TRUE,0, sizeof(rt_sphere) * spheres.size(), spheres.data(), NULL, NULL);
 
 

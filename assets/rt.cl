@@ -61,6 +61,36 @@ float IntersectRaySphere(float4 o, float4 d, float tMin, __constant rt_sphere* s
     return t;
 }
 
+float ComputeLighting(float4 point, float4 normal) 
+{
+    float sum = 0.0;
+    float4 L = (float4) (1,2,3,4);
+    
+    sum += 0.2;
+
+    for (int i = 0; i < 2; i++) 
+    {
+        float intensity = 0.6;
+        if (i == 0) 
+        {
+            intensity = 0.6;
+            float4 position = (float4) (2,1,0,0);
+            L = position - point;
+        }
+        if (i == 1) {
+            intensity = 0.2;
+            L = (float4) (1,4,4,0);
+        }
+
+        float nDotL = dot(normal, L);
+        if (nDotL > 0) {
+            sum += intensity * nDotL / (length(normal) * length(L));
+        }
+    }
+    return sum;
+}
+
+
 float4 TraceRay(float4 o, float4 d, float tMin, float tMax, __constant rt_sphere *spheres, const rt_scene *scene)
 { 
     float closest_t = INFINITY;
@@ -81,16 +111,21 @@ float4 TraceRay(float4 o, float4 d, float tMin, float tMax, __constant rt_sphere
     {
         return scene->bg_color;
     }
-    else 
+
+    float4 P =  o + (d * closest_t);
+    float4 normal = P - spheres[sphere_index].center;
+    normal = normal / length(normal);
+    
+    if (dot(normal, d) > 0)
     {
-        return spheres[sphere_index].color;
+        normal = - normal;
     }
+
+    return spheres[sphere_index].color * ComputeLighting(P, normal);
 }
 
 __kernel void rt (rt_scene scene, __constant rt_sphere *spheres, __write_only image2d_t output)
 {
-    //printf("%d", scene.sphere_count);
-
     const int xEdge = (int) round(scene.canvas_width / 2.0);
     const int yEdge = (int) round(scene.canvas_height / 2.0);
     const int x = get_global_id (0);
