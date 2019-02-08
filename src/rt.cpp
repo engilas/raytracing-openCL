@@ -192,7 +192,7 @@ int main()
 
     glfwSetErrorCallback(glfw_error_callback);
 
-    window = glfwCreateWindow(wind_width,wind_height,"Julia Sets", NULL,NULL);
+    window = glfwCreateWindow(wind_width,wind_height,"RT", NULL,NULL);
     if (!window) {
         glfwTerminate();
         return 254;
@@ -343,11 +343,6 @@ int main()
 
     std::cin.get();
     return 0;
-}
-
-inline unsigned divup(unsigned a, unsigned b)
-{
-    return (a+b-1)/b;
 }
 
 void processTimeStep()
