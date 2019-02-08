@@ -71,11 +71,12 @@ include_directories(
 
 file(GLOB common_src "common/*.cpp")
 file(GLOB src "src/*.cpp")
+file(GLOB src_h "src/*.h")
 
-# macro(BUILD_EXAMPLE EXAMPLE_NAME EXAMPLE_SOURCE OUT_DIR_NAME)
 add_executable("rt"
     ${common_src}
     ${src}
+    ${src_h}
     )
 target_link_libraries("rt"
     PRIVATE ${OPENGL_LIBRARIES}
@@ -90,11 +91,3 @@ set_target_properties("rt"
     OUTPUT_NAME "rt"
     RUNTIME_OUTPUT_DIRECTORY "rt"
     FOLDER "src")
-# endmacro()
-
-#foreach(FILE ${src})
-#    get_filename_component(EXAMPLE ${FILE} NAME_WE)
-#    get_filename_component(FULL_DIR_NAME ${FILE} PATH)
-#    get_filename_component(DIR_NAME ${FULL_DIR_NAME} NAME)
-#    BUILD_EXAMPLE(${EXAMPLE} ${FILE} ${DIR_NAME})
-#endforeach()
