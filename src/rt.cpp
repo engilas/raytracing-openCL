@@ -116,6 +116,11 @@ typedef struct {
 process_params params;
 render_params rparams;
 
+bool w_pressed = false;
+bool a_pressed = false;
+bool s_pressed = false;
+bool d_pressed = false;
+
 rt_sphere create_spheres(cl_float4 center, cl_float4 color, cl_float radius)
 {
 	rt_sphere sphere;
@@ -175,15 +180,24 @@ rt_scene create_scene(int width, int height)
     return result;
 }
 
+void UpdateScene(rt_scene &scene, double frameRate) 
+{
+	auto speed = (cl_float) frameRate;
+
+	if (w_pressed)
+		params.scene.camera_pos.z += speed;
+	if (a_pressed)
+		params.scene.camera_pos.x -= speed;
+	if (s_pressed)
+		params.scene.camera_pos.z -= speed;
+	if (d_pressed)
+		params.scene.camera_pos.x += speed;
+}
+
 static void glfw_error_callback(int error, const char* desc)
 {
     fputs(desc,stderr);
 }
-
-bool w_pressed = false;
-bool a_pressed = false;
-bool s_pressed = false;
-bool d_pressed = false;
 
 static void glfw_key_callback(GLFWwindow* wind, int key, int scancode, int action, int mods)
 {
@@ -209,7 +223,7 @@ static void glfw_framebuffer_size_callback(GLFWwindow* wind, int width, int heig
     glViewport(0,0,width,height);
 }
 
-void processTimeStep(void);
+void processTimeStep(double frameRate);
 void renderFrame(void);
 
 int main()
@@ -350,11 +364,18 @@ int main()
 
 	glfwSwapInterval(0);
 
-    while (!glfwWindowShouldClose(window)) {
-        
+	auto currentTime = std::chrono::steady_clock::now();
+
+    while (!glfwWindowShouldClose(window)) 
+	{
         ++frames_count;
+
+		auto newTime = std::chrono::steady_clock::now();
+		std::chrono::duration<double> frameTime = (newTime - currentTime);
+		currentTime = newTime;
+
         // process call
-        processTimeStep();
+        processTimeStep(frameTime.count());
         // render call
         renderFrame();
         // swap front and back buffers
@@ -381,7 +402,7 @@ int main()
     return 0;
 }
 
-void processTimeStep()
+void processTimeStep(double frameRate)
 {
     cl::Event ev;
     try {
@@ -400,17 +421,9 @@ void processTimeStep()
         
         NDRange global(wind_width, wind_height);
 
-		if (w_pressed)
-			params.scene.camera_pos.z += 0.001f;
-		if (a_pressed)
-			params.scene.camera_pos.x -= 0.001f;
-		if (s_pressed)
-			params.scene.camera_pos.z -= 0.001f;
-		if (d_pressed)
-			params.scene.camera_pos.x += 0.001f;
+		UpdateScene(params.scene, frameRate);
 
 		params.q.enqueueWriteBuffer(params.sceneMem, CL_TRUE, 0, sizeof(rt_scene), &params.scene, NULL, NULL);
-
 
         params.q.enqueueNDRangeKernel(params.k,cl::NullRange, global, cl::NullRange);
         // release opengl object
