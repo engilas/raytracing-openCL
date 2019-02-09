@@ -63,13 +63,22 @@ static int wind_width = 720;
 static int wind_height= 720;
 static int gJuliaSetIndex = 0;
 
-typedef struct __declspec(align(128)) {
+typedef struct {
     cl_float4 center;
     cl_float4 color;
     cl_float radius;
 } rt_sphere;
 
-typedef struct __declspec(align(128)) {
+typedef enum { Ambient, Point, Direct } lightType;
+
+typedef struct {
+	lightType type;
+	cl_float intensity;
+	cl_float4 position;
+	cl_float4 direction;
+} rt_light;
+
+typedef struct {
     cl_float4 camera_pos;
     cl_float4 bg_color;
     cl_float canvas_width;
@@ -79,6 +88,10 @@ typedef struct __declspec(align(128)) {
     cl_float viewport_dist;
 
     cl_int sphere_count;
+	cl_int light_count;
+
+	rt_sphere spheres[128];
+	rt_light lights[128];
 } rt_scene;
 
 typedef struct {
@@ -89,8 +102,9 @@ typedef struct {
     ImageGL tex;
     cl::size_t<3> dims;
 
-    rt_scene scene;
-    Buffer spheres;
+	rt_scene scene;
+	
+	Buffer sceneMem;
 } process_params;
 
 typedef struct {
@@ -102,34 +116,63 @@ typedef struct {
 process_params params;
 render_params rparams;
 
+rt_sphere create_spheres(cl_float4 center, cl_float4 color, cl_float radius)
+{
+	rt_sphere sphere;
+	memset(&sphere, 0, sizeof(rt_sphere));
+	sphere.center = center;
+	sphere.color = color;
+	sphere.radius = radius;
 
-rt_scene create_scene(int width, int height, cl_float4 camera_pos, cl_float4 bg_color, int sphere_count)
+	return sphere;
+}
+
+rt_light create_light(lightType type, cl_float intensity, cl_float4 position, cl_float4 direction)
+{
+	rt_light light;
+	memset(&light, 0, sizeof(rt_light));
+	light.type = type;
+	light.intensity = intensity;
+	light.position = position;
+	light.direction = direction;
+
+	return light;
+}
+
+
+rt_scene create_scene(int width, int height)
 {
 	auto min = width > height ? height : width;
 
+	int spheres_count = 3;
+	std::vector<rt_sphere> spheres;
+	std::vector<rt_light> lights;
+
+	spheres.push_back(create_spheres({ 2,0,4 }, { 0,1,0 }, 1));
+	spheres.push_back(create_spheres({ -2,0,4 }, { 0,0,1 }, 1));
+	spheres.push_back(create_spheres({ 0,-1,3 }, { 1,0,0 }, 1));
+
+	lights.push_back(create_light(Ambient, 0.2f, { 0 }, { 0 }));
+	lights.push_back(create_light(Point, 0.6f, { 2,1,0 }, { 0 }));
+	lights.push_back(create_light(Direct, 0.2f, { 0 }, { 1,4,4 }));
+
 	rt_scene result;
     memset(&result, 0, sizeof(rt_scene));
-    result.camera_pos = camera_pos;
+	result.camera_pos = { 0 };
     result.canvas_height = height;
     result.canvas_width = width;
     result.viewport_dist = 1;
     result.viewport_height = height / (cl_float) min;
     result.viewport_width = width / (cl_float) min;
-    result.bg_color = bg_color;
-    result.sphere_count = sphere_count;
+	result.bg_color = { 0 };
+
+    result.sphere_count = spheres.size();
+	result.light_count = lights.size();
+
+	std::copy(spheres.begin(), spheres.end(), result.spheres);
+	std::copy(lights.begin(), lights.end(), result.lights);
 
     return result;
-}
-
-rt_sphere create_spheres(cl_float4 center, cl_float4 color, int radius)
-{
-    rt_sphere sphere;
-    memset(&sphere, 0, sizeof(rt_sphere));
-    sphere.center = center;
-    sphere.color = color;
-    sphere.radius = radius;
-
-    return sphere;
 }
 
 static void glfw_error_callback(int error, const char* desc)
@@ -168,7 +211,6 @@ static void glfw_framebuffer_size_callback(GLFWwindow* wind, int width, int heig
 
 void processTimeStep(void);
 void renderFrame(void);
-std::vector<rt_sphere> spheres;
 
 int main()
 {
@@ -280,23 +322,17 @@ int main()
         params.dims[2] = 1;
 
 
-        int spheres_count = 3;
-        
-        spheres.push_back(create_spheres({2,0,4}, {0,1,0}, 1));
-        spheres.push_back(create_spheres({-2,0,4}, {0,0,1}, 1));
-        spheres.push_back(create_spheres({0,-1,3}, {1,0,0}, 1));
-
-        params.scene = create_scene(wind_width, wind_height, {0}, {0}, spheres_count);
-        params.spheres = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(rt_sphere) * spheres_count, spheres.data(), &errCode);
-        if (errCode!=CL_SUCCESS) {
-            std::cout<<"Failed to create spheres buffer: "<<errCode<<std::endl;
-            return 250;
-        }
+        params.scene = create_scene(wind_width, wind_height);
+		
+		params.sceneMem = Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(rt_scene), &params.scene, &errCode);
+		if (errCode != CL_SUCCESS) {
+			std::cout << "Failed to create scene buffer: " << errCode << std::endl;
+			return 250;
+		}
 
         // set kernel arguments
-        params.k.setArg(0, params.scene);
-        params.k.setArg(1, params.spheres);
-        params.k.setArg(2, params.tex);
+        params.k.setArg(0, params.sceneMem);
+        params.k.setArg(1, params.tex);
 
     } catch(Error error) {
         std::cout << error.what() << "(" << error.err() << ")" << std::endl;
@@ -361,23 +397,19 @@ void processTimeStep()
             std::cout<<"Failed acquiring GL object: "<<res<<std::endl;
             exit(248);
         }
-        //NDRange local(16, 16);
+        
         NDRange global(wind_width, wind_height);
 
-		//params.scene.camera_pos.s0 += 0.001;
-        //spheres[1].center.s0 += 0.001;
-
 		if (w_pressed)
-			params.scene.camera_pos.z += 0.001;
+			params.scene.camera_pos.z += 0.001f;
 		if (a_pressed)
-			params.scene.camera_pos.x -= 0.001;
+			params.scene.camera_pos.x -= 0.001f;
 		if (s_pressed)
-			params.scene.camera_pos.z -= 0.001;
+			params.scene.camera_pos.z -= 0.001f;
 		if (d_pressed)
-			params.scene.camera_pos.x += 0.001;
+			params.scene.camera_pos.x += 0.001f;
 
-		params.k.setArg(0, params.scene);
-        params.q.enqueueWriteBuffer(params.spheres, CL_TRUE,0, sizeof(rt_sphere) * spheres.size(), spheres.data(), NULL, NULL);
+		params.q.enqueueWriteBuffer(params.sceneMem, CL_TRUE, 0, sizeof(rt_scene), &params.scene, NULL, NULL);
 
 
         params.q.enqueueNDRangeKernel(params.k,cl::NullRange, global, cl::NullRange);
