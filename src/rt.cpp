@@ -26,6 +26,8 @@
 #include <string>
 #include <chrono>
 
+#include "quaternion.h"
+
 using namespace std;
 using namespace cl;
 
@@ -64,6 +66,11 @@ static int wind_height= 720;
 static int gJuliaSetIndex = 0;
 
 typedef struct {
+	cl_float w;
+	cl_float4 v;
+} quaternion;
+
+typedef struct {
     cl_float4 center;
     cl_float4 color;
     cl_float radius;
@@ -90,8 +97,10 @@ typedef struct {
     cl_int sphere_count;
 	cl_int light_count;
 
-	rt_sphere spheres[128];
-	rt_light lights[128];
+	quaternion camera_rotation;
+
+	rt_sphere spheres[32];
+	rt_light lights[32];
 } rt_scene;
 
 typedef struct {
@@ -176,6 +185,9 @@ rt_scene create_scene(int width, int height)
 
 	std::copy(spheres.begin(), spheres.end(), result.spheres);
 	std::copy(lights.begin(), lights.end(), result.lights);
+
+	cl_float x[3] = { 1, 0, 0 };
+	Quaternion<cl_float> q(x, 45);
 
     return result;
 }

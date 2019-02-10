@@ -1,4 +1,9 @@
 typedef struct {
+	cl_float w;
+	cl_float4 v;
+} __attribute__((packed)) quaternion;
+
+typedef struct {
 	float4 center;
 	float4 color;
 	float radius;
@@ -25,8 +30,10 @@ typedef struct {
 	int sphere_count;
 	int light_count;
 
-	rt_sphere spheres[128];
-	rt_light lights[128];
+	quaternion camera_rotation;
+
+	rt_sphere spheres[32];
+	rt_light lights[32];
 } rt_scene;
 
 float4 CanvasToViewport(float x, float y, __constant rt_scene* scene)
@@ -35,7 +42,7 @@ float4 CanvasToViewport(float x, float y, __constant rt_scene* scene)
 		y * scene->viewport_height / scene->canvas_height,
 		scene->viewport_dist,
 		0);
-	return result;
+	return result * (float4)(0.961, 0, 0.276, 0.000);
 }
 
 float IntersectRaySphere(float4 o, float4 d, float tMin, __constant rt_sphere* sphere)
