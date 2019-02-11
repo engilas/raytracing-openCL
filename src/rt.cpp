@@ -170,6 +170,14 @@ void addVector(cl_float4 *v1, cl_float4 *v2) {
 	v1->z += v2->z;
 }
 
+void moveCamera(Quaternion<cl_float> &q, const cl_float4 &direction, cl_float4 *vector, const cl_float speed) {
+	cl_float tmp[3] = { direction.x, direction.y, direction.z };
+	q.QuatRotation(tmp);
+	cl_float4 dir = cl_float4{ tmp[0], tmp[1], tmp[2] };
+	multiplyVector(&dir, speed);
+	addVector(vector, &dir);
+}
+
 void UpdateScene(rt_scene &scene, double frameRate) 
 {
 	static cl_float xAxis[3] = { 1, 0, 0 };
@@ -182,22 +190,17 @@ void UpdateScene(rt_scene &scene, double frameRate)
 
 	auto speed = (cl_float)frameRate;
 
-	cl_float tmp[3] = { 0,0,1 };
-	q.QuatRotation(tmp);
-	cl_float4 rotationVec = cl_float4{ tmp[0], tmp[1], tmp[2] };
+	cl_float4 frontDir = { 0,0,1 };
+	cl_float4 sideDir = { 1,0,0 };
 
-	if (w_pressed) {
-		multiplyVector(&rotationVec, speed);
-		addVector(&params.scene.camera_pos, &rotationVec);
-	}
+	if (w_pressed) 
+		moveCamera(q, frontDir, &params.scene.camera_pos, speed);
 	if (a_pressed)
-		params.scene.camera_pos.x -= speed;
-	if (s_pressed) {
-		multiplyVector(&rotationVec, -speed);
-		addVector(&params.scene.camera_pos, &rotationVec);
-	}
+		moveCamera(q, sideDir, &params.scene.camera_pos, -speed);
+	if (s_pressed)
+		moveCamera(q, frontDir, &params.scene.camera_pos, -speed);
 	if (d_pressed)
-		params.scene.camera_pos.x += speed;
+		moveCamera(q, sideDir, &params.scene.camera_pos, speed);
 }
 
 static void glfw_error_callback(int error, const char* desc)
