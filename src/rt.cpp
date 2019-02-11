@@ -34,8 +34,6 @@ using namespace cl;
 
 typedef unsigned int uint;
 
-static const uint NUM_JSETS = 9;
-
 static const float matrix[16] =
 {
     1.0f, 0.0f, 0.0f, 0.0f,
@@ -64,9 +62,6 @@ static const uint indices[6] = {0,1,2,0,2,3};
 
 static int wind_width = 720;
 static int wind_height= 720;
-static int gJuliaSetIndex = 0;
-
-
 
 typedef struct {
     Device d;
@@ -74,7 +69,6 @@ typedef struct {
     Program p;
     Kernel k;
     ImageGL tex;
-    cl::size_t<3> dims;
 
 	rt_scene scene;
 	
@@ -94,6 +88,11 @@ bool w_pressed = false;
 bool a_pressed = false;
 bool s_pressed = false;
 bool d_pressed = false;
+
+float lastX = 0;
+float lastY = 0;
+float pitch = 0;
+float yaw = 0;
 
 rt_sphere create_spheres(cl_float4 center, cl_float4 color, cl_float radius)
 {
@@ -171,6 +170,15 @@ void UpdateScene(rt_scene &scene, double frameRate)
 		params.scene.camera_pos.z -= speed;
 	if (d_pressed)
 		params.scene.camera_pos.x += speed;
+
+	
+
+	static cl_float xAxis[3] = { 1, 0, 0 };
+	static cl_float yAxis[3] = { 0, 1, 0 };
+	Quaternion<cl_float> qX(xAxis, -pitch * 3.141592653589793 / 180.0);
+	Quaternion<cl_float> qY(yAxis, yaw * 3.141592653589793 / 180.0);
+
+	params.scene.camera_rotation = (qY * qX).GetStruct();
 }
 
 static void glfw_error_callback(int error, const char* desc)
@@ -195,6 +203,37 @@ static void glfw_key_callback(GLFWwindow* wind, int key, int scancode, int actio
 		else if (key == GLFW_KEY_D)
 			d_pressed = pressed;
     }
+}
+
+bool firstMouse = true;
+
+static void glfw_mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+
+	if (firstMouse)
+	{
+		lastX = xpos;
+		lastY = ypos;
+		firstMouse = false;
+	}
+
+	float xoffset = xpos - lastX;
+	float yoffset = lastY - ypos; 
+	lastX = xpos;
+	lastY = ypos;
+
+
+
+	float sensitivity = 0.05f;
+	xoffset *= sensitivity;
+	yoffset *= sensitivity;
+
+	yaw += xoffset;
+	pitch += yoffset;
+
+	if (pitch > 89.0f)
+		pitch = 89.0f;
+	if (pitch < -89.0f)
+		pitch = -89.0f;
 }
 
 static void glfw_framebuffer_size_callback(GLFWwindow* wind, int width, int height)
@@ -310,9 +349,6 @@ int main()
             std::cout<<"Failed to create OpenGL texture refrence: "<<errCode<<std::endl;
             return 250;
         }
-        params.dims[0] = wind_width;
-        params.dims[1] = wind_height;
-        params.dims[2] = 1;
 
 
         params.scene = create_scene(wind_width, wind_height);
@@ -334,6 +370,8 @@ int main()
         return 249;
     }
 
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetCursorPosCallback(window, glfw_mouse_callback);
     glfwSetKeyCallback(window,glfw_key_callback);
     glfwSetFramebufferSizeCallback(window,glfw_framebuffer_size_callback);
 
