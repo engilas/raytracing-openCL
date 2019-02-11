@@ -158,27 +158,46 @@ rt_scene create_scene(int width, int height)
     return result;
 }
 
+void multiplyVector(cl_float4 *v, cl_float s) {
+	v->x *= s;
+	v->y *= s;
+	v->z *= s;
+}
+
+void addVector(cl_float4 *v1, cl_float4 *v2) {
+	v1->x += v2->x;
+	v1->y += v2->y;
+	v1->z += v2->z;
+}
+
 void UpdateScene(rt_scene &scene, double frameRate) 
 {
-	auto speed = (cl_float) frameRate;
-
-	if (w_pressed)
-		params.scene.camera_pos.z += speed;
-	if (a_pressed)
-		params.scene.camera_pos.x -= speed;
-	if (s_pressed)
-		params.scene.camera_pos.z -= speed;
-	if (d_pressed)
-		params.scene.camera_pos.x += speed;
-
-	
-
 	static cl_float xAxis[3] = { 1, 0, 0 };
 	static cl_float yAxis[3] = { 0, 1, 0 };
 	Quaternion<cl_float> qX(xAxis, -pitch * 3.141592653589793 / 180.0);
 	Quaternion<cl_float> qY(yAxis, yaw * 3.141592653589793 / 180.0);
+	Quaternion<cl_float> q = qY * qX;
+	params.scene.camera_rotation = q.GetStruct();
 
-	params.scene.camera_rotation = (qY * qX).GetStruct();
+
+	auto speed = (cl_float)frameRate;
+
+	cl_float tmp[3] = { 0,0,1 };
+	q.QuatRotation(tmp);
+	cl_float4 rotationVec = cl_float4{ tmp[0], tmp[1], tmp[2] };
+
+	if (w_pressed) {
+		multiplyVector(&rotationVec, speed);
+		addVector(&params.scene.camera_pos, &rotationVec);
+	}
+	if (a_pressed)
+		params.scene.camera_pos.x -= speed;
+	if (s_pressed) {
+		multiplyVector(&rotationVec, -speed);
+		addVector(&params.scene.camera_pos, &rotationVec);
+	}
+	if (d_pressed)
+		params.scene.camera_pos.x += speed;
 }
 
 static void glfw_error_callback(int error, const char* desc)
