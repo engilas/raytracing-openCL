@@ -1,6 +1,6 @@
 typedef struct {
-	cl_float w;
-	cl_float4 v;
+	float w;
+	float4 v;
 } __attribute__((packed)) quaternion;
 
 typedef struct {
@@ -36,13 +36,44 @@ typedef struct {
 	rt_light lights[32];
 } rt_scene;
 
+quaternion multiplyQuaternion(quaternion *q1, quaternion *q2) {
+	quaternion result;
+
+	result.w =   q1->w*q2->w - q1->v.x * q2->v.x - q1->v.y * q2->v.y - q1->v.z * q2->v.z;
+	result.v.x = q1->w*q2->v.x + q1->v.x * q2->w + q1->v.y * q2->v.z - q1->v.z * q2->v.y;
+	result.v.y = q1->w*q2->v.y + q1->v.y * q2->w + q1->v.z * q2->v.x - q1->v.x * q2->v.z;
+	result.v.z = q1->w*q2->v.z + q1->v.z * q2->w + q1->v.x * q2->v.y - q1->v.y * q2->v.x;
+
+	return result;
+}
+
+float4 Rotate(__constant quaternion *q, float4 *v)
+{
+	quaternion qv;
+	qv.w = 0;
+	qv.v = *v;
+
+	quaternion tmp = *q;
+	quaternion mult = multiplyQuaternion(&tmp, &qv);
+	quaternion inverse;
+	float scale = 1 / (q->w*q->w + dot(q->v, q->v));
+	inverse.w = scale * q->w;
+	inverse.v = - scale * q->v;
+	quaternion result = multiplyQuaternion(&mult, &inverse);
+
+	return result.v;
+}
+
 float4 CanvasToViewport(float x, float y, __constant rt_scene* scene)
 {
 	float4 result = (float4) (x * scene->viewport_width / scene->canvas_width,
 		y * scene->viewport_height / scene->canvas_height,
 		scene->viewport_dist,
 		0);
-	return result * (float4)(0.961, 0, 0.276, 0.000);
+
+
+
+	return Rotate(&scene->camera_rotation, &result);
 }
 
 float IntersectRaySphere(float4 o, float4 d, float tMin, __constant rt_sphere* sphere)

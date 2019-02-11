@@ -26,6 +26,7 @@
 #include <string>
 #include <chrono>
 
+#include "scene.h"
 #include "quaternion.h"
 
 using namespace std;
@@ -65,43 +66,7 @@ static int wind_width = 720;
 static int wind_height= 720;
 static int gJuliaSetIndex = 0;
 
-typedef struct {
-	cl_float w;
-	cl_float4 v;
-} quaternion;
 
-typedef struct {
-    cl_float4 center;
-    cl_float4 color;
-    cl_float radius;
-} rt_sphere;
-
-typedef enum { Ambient, Point, Direct } lightType;
-
-typedef struct {
-	lightType type;
-	cl_float intensity;
-	cl_float4 position;
-	cl_float4 direction;
-} rt_light;
-
-typedef struct {
-    cl_float4 camera_pos;
-    cl_float4 bg_color;
-    cl_float canvas_width;
-    cl_float canvas_height;
-    cl_float viewport_width;
-    cl_float viewport_height;
-    cl_float viewport_dist;
-
-    cl_int sphere_count;
-	cl_int light_count;
-
-	quaternion camera_rotation;
-
-	rt_sphere spheres[32];
-	rt_light lights[32];
-} rt_scene;
 
 typedef struct {
     Device d;
@@ -154,6 +119,7 @@ rt_light create_light(lightType type, cl_float intensity, cl_float4 position, cl
 }
 
 
+
 rt_scene create_scene(int width, int height)
 {
 	auto min = width > height ? height : width;
@@ -186,8 +152,9 @@ rt_scene create_scene(int width, int height)
 	std::copy(spheres.begin(), spheres.end(), result.spheres);
 	std::copy(lights.begin(), lights.end(), result.lights);
 
-	cl_float x[3] = { 1, 0, 0 };
-	Quaternion<cl_float> q(x, 45);
+	cl_float x[3] = { 0, 1, 0 };
+	Quaternion<cl_float> q(x, 45 * 3.141592653589793 / 180.0);
+	result.camera_rotation = q.GetStruct();
 
     return result;
 }
