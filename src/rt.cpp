@@ -88,6 +88,9 @@ bool w_pressed = false;
 bool a_pressed = false;
 bool s_pressed = false;
 bool d_pressed = false;
+bool ctrl_pressed = false;
+bool shift_pressed = false;
+bool space_pressed = false;
 
 float lastX = 0;
 float lastY = 0;
@@ -158,49 +161,61 @@ rt_scene create_scene(int width, int height)
     return result;
 }
 
-void multiplyVector(cl_float4 *v, cl_float s) {
-	v->x *= s;
-	v->y *= s;
-	v->z *= s;
+void multiplyVector(cl_float v[3], cl_float s) {
+	v[0] *= s;
+	v[1] *= s;
+	v[2] *= s;
 }
 
-void addVector(cl_float4 *v1, cl_float4 *v2) {
-	v1->x += v2->x;
-	v1->y += v2->y;
-	v1->z += v2->z;
+void addVector(cl_float4 *v1, const cl_float v2[3]) {
+	v1->x += v2[0];
+	v1->y += v2[1];
+	v1->z += v2[2];
 }
 
-void moveCamera(Quaternion<cl_float> &q, const cl_float4 &direction, cl_float4 *vector, const cl_float speed) {
-	cl_float tmp[3] = { direction.x, direction.y, direction.z };
+void moveCamera(Quaternion<cl_float> &q, const cl_float direction[3], cl_float4 *vector, const cl_float speed) {
+	cl_float tmp[3] = { direction[0], direction[1], direction[2] };
 	q.QuatRotation(tmp);
-	cl_float4 dir = cl_float4{ tmp[0], tmp[1], tmp[2] };
-	multiplyVector(&dir, speed);
-	addVector(vector, &dir);
+	multiplyVector(tmp, speed);
+	addVector(vector, tmp);
+}
+
+void moveCamera(const cl_float direction[3], cl_float4 *vector, const cl_float speed) {
+	cl_float tmp[3] = { direction[0], direction[1], direction[2] };
+	multiplyVector(tmp, speed);
+	addVector(vector, tmp);
 }
 
 void UpdateScene(rt_scene &scene, double frameRate) 
 {
-	static cl_float xAxis[3] = { 1, 0, 0 };
-	static cl_float yAxis[3] = { 0, 1, 0 };
-	Quaternion<cl_float> qX(xAxis, -pitch * 3.141592653589793 / 180.0);
-	Quaternion<cl_float> qY(yAxis, yaw * 3.141592653589793 / 180.0);
+	const cl_float xAxis[3] = { 1, 0, 0 };
+	const cl_float yAxis[3] = { 0, 1, 0 };
+	const cl_float zAxis[3] = { 0, 0, 1 };
+	const float PI_F = 3.14159265358979f;
+
+	Quaternion<cl_float> qX(xAxis, -pitch * PI_F / 180.0);
+	Quaternion<cl_float> qY(yAxis, yaw * PI_F / 180.0);
 	Quaternion<cl_float> q = qY * qX;
 	params.scene.camera_rotation = q.GetStruct();
 
 
 	auto speed = (cl_float)frameRate;
-
-	cl_float4 frontDir = { 0,0,1 };
-	cl_float4 sideDir = { 1,0,0 };
+	if (shift_pressed)
+		speed *= 3;
 
 	if (w_pressed) 
-		moveCamera(q, frontDir, &params.scene.camera_pos, speed);
+		moveCamera(q, zAxis, &params.scene.camera_pos, speed);
 	if (a_pressed)
-		moveCamera(q, sideDir, &params.scene.camera_pos, -speed);
+		moveCamera(q, xAxis, &params.scene.camera_pos, -speed);
 	if (s_pressed)
-		moveCamera(q, frontDir, &params.scene.camera_pos, -speed);
+		moveCamera(q, zAxis, &params.scene.camera_pos, -speed);
 	if (d_pressed)
-		moveCamera(q, sideDir, &params.scene.camera_pos, speed);
+		moveCamera(q, xAxis, &params.scene.camera_pos, speed);
+	
+	if (space_pressed)
+		moveCamera(yAxis, &params.scene.camera_pos, speed);
+	if (ctrl_pressed)
+		moveCamera(yAxis, &params.scene.camera_pos, -speed);
 }
 
 static void glfw_error_callback(int error, const char* desc)
@@ -224,6 +239,12 @@ static void glfw_key_callback(GLFWwindow* wind, int key, int scancode, int actio
 			a_pressed = pressed;
 		else if (key == GLFW_KEY_D)
 			d_pressed = pressed;
+		else if (key == GLFW_KEY_SPACE)
+			space_pressed = pressed;
+		else if (key == GLFW_KEY_LEFT_CONTROL)
+			ctrl_pressed = pressed;
+		else if (key == GLFW_KEY_LEFT_SHIFT)
+			shift_pressed = pressed;
     }
 }
 

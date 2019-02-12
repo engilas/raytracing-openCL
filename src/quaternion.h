@@ -49,7 +49,7 @@ public:
 	// -constructor
 	// -parameters : vector and rotation angle
 	// -creates a new quaternion based on the elements passed in
-	Quaternion(_Tp v[3], _Tp rotation) {
+	Quaternion(const _Tp v[3], _Tp rotation) {
 		_Tp t = rotation / 2;
 		w = cos(t);
 		x = sin(t) * v[0];
