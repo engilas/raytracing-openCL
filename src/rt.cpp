@@ -97,13 +97,15 @@ float lastY = 0;
 float pitch = 0;
 float yaw = 0;
 
-rt_sphere create_spheres(cl_float4 center, cl_float4 color, cl_float radius)
+rt_sphere create_spheres(cl_float4 center, cl_float4 color, cl_float radius, cl_int specular, cl_float reflect)
 {
 	rt_sphere sphere;
 	memset(&sphere, 0, sizeof(rt_sphere));
 	sphere.center = center;
 	sphere.color = color;
 	sphere.radius = radius;
+	sphere.specular = specular;
+	sphere.reflect = reflect;
 
 	return sphere;
 }
@@ -130,35 +132,43 @@ rt_scene create_scene(int width, int height)
 	std::vector<rt_sphere> spheres;
 	std::vector<rt_light> lights;
 
-	spheres.push_back(create_spheres({ 2,0,4 }, { 0,1,0 }, 1));
-	spheres.push_back(create_spheres({ -2,0,4 }, { 0,0,1 }, 1));
-	spheres.push_back(create_spheres({ 0,-1,3 }, { 1,0,0 }, 1));
+	/*spheres.push_back(create_spheres({ 2,0,4 }, { 0,1,0 }, 1, 10, 0.2f));
+	spheres.push_back(create_spheres({ -2,0,4 }, { 0,0,1 }, 1, 500, 0.3f));
+	spheres.push_back(create_spheres({ 0,-1,3 }, { 1,0,0 }, 1, 500, 0.4f));*/
+	for (cl_float x = 0; x < 6; x++)
+	for (cl_float z = 0; z < 5; z++)
+	{
+		cl_float r = (cl_float)rand() / (cl_float)RAND_MAX;
+		cl_float g = (cl_float)rand() / (cl_float)RAND_MAX;
+		cl_float b = (cl_float)rand() / (cl_float)RAND_MAX;
+		cl_float reflect = (cl_float)rand() / (cl_float)RAND_MAX;
+		cl_int specular = rand() % 1000;
+
+		spheres.push_back(create_spheres({ x - 3, -1, z - 2.5f }, { r,g,b }, 0.4f, specular, reflect));
+	}
 
 	lights.push_back(create_light(Ambient, 0.2f, { 0 }, { 0 }));
 	lights.push_back(create_light(Point, 0.6f, { 2,1,0 }, { 0 }));
 	lights.push_back(create_light(Direct, 0.2f, { 0 }, { 1,4,4 }));
 
-	rt_scene result;
-    memset(&result, 0, sizeof(rt_scene));
-	result.camera_pos = { 0 };
-    result.canvas_height = height;
-    result.canvas_width = width;
-    result.viewport_dist = 1;
-    result.viewport_height = height / (cl_float) min;
-    result.viewport_width = width / (cl_float) min;
-	result.bg_color = { 0 };
+	rt_scene scene;
+    memset(&scene, 0, sizeof(rt_scene));
+	scene.camera_pos = { 0 };
+    scene.canvas_height = height;
+    scene.canvas_width = width;
+    scene.viewport_dist = 1;
+    scene.viewport_height = height / (cl_float) min;
+    scene.viewport_width = width / (cl_float) min;
+	scene.bg_color = { 0.1,0,0 };
+	scene.reflect_depth = 2;
 
-    result.sphere_count = spheres.size();
-	result.light_count = lights.size();
+    scene.sphere_count = spheres.size();
+	scene.light_count = lights.size();
 
-	std::copy(spheres.begin(), spheres.end(), result.spheres);
-	std::copy(lights.begin(), lights.end(), result.lights);
+	std::copy(spheres.begin(), spheres.end(), scene.spheres);
+	std::copy(lights.begin(), lights.end(), scene.lights);
 
-	cl_float x[3] = { 0, 1, 0 };
-	Quaternion<cl_float> q(x, 45 * 3.141592653589793 / 180.0);
-	result.camera_rotation = q.GetStruct();
-
-    return result;
+    return scene;
 }
 
 void multiplyVector(cl_float v[3], cl_float s) {
@@ -193,8 +203,8 @@ void UpdateScene(rt_scene &scene, double frameRate)
 	const cl_float zAxis[3] = { 0, 0, 1 };
 	const float PI_F = 3.14159265358979f;
 
-	Quaternion<cl_float> qX(xAxis, -pitch * PI_F / 180.0);
-	Quaternion<cl_float> qY(yAxis, yaw * PI_F / 180.0);
+	Quaternion<cl_float> qX(xAxis, -pitch * PI_F / 180.0f);
+	Quaternion<cl_float> qY(yAxis, yaw * PI_F / 180.0f);
 	Quaternion<cl_float> q = qY * qX;
 	params.scene.camera_rotation = q.GetStruct();
 
@@ -289,6 +299,8 @@ void renderFrame(void);
 
 int main()
 {
+	srand(time(nullptr));
+
     if (!glfwInit())
         return 255;
 
@@ -302,8 +314,8 @@ int main()
 
     wind_width  = mode->width;
     wind_height = mode->height;
-    wind_width = 800;
-    wind_height = 600;
+    //wind_width = 800;
+    //wind_height = 600;
 
     GLFWwindow* window;
 
@@ -420,7 +432,7 @@ int main()
 
     const auto start = std::chrono::steady_clock::now();
     int frames_count = 0;
-    srand(time(nullptr));
+    
 
 	glfwSwapInterval(0);
 

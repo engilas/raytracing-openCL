@@ -1,3 +1,5 @@
+#define MAX_RECURSION_DEPTH 5
+
 typedef struct {
 	float w;
 	float4 v;
@@ -7,6 +9,8 @@ typedef struct {
 	float4 center;
 	float4 color;
 	float radius;
+	float reflect;
+	int specular;
 } __attribute__((packed)) rt_sphere;
 
 typedef enum { Ambient, Point, Direct } lightType;
@@ -26,6 +30,7 @@ typedef struct {
 	float viewport_width;
 	float viewport_height;
 	float viewport_dist;
+	int reflect_depth;
 
 	int sphere_count;
 	int light_count;
@@ -112,7 +117,12 @@ float IntersectRaySphere(float4 o, float4 d, float tMin, __constant rt_sphere* s
 	return t;
 }
 
-float ComputeLighting(float4 point, float4 normal, int lightCount, __constant rt_light *lights)
+float4 ReflectRay(float4 r, float4 normal) {
+	//return normal * (2 * dot(r, normal)) - r; // normal.Multiply(2 * r.DotProduct(normal)).Subtract(r);
+	return 2*normal*dot(r, normal) - r;
+}
+
+float ComputeLighting(float4 point, float4 normal, int lightCount, __constant rt_light *lights, float4 view, int specular)
 {
 	float sum = 0;
 	float4 L;
@@ -133,44 +143,146 @@ float ComputeLighting(float4 point, float4 normal, int lightCount, __constant rt
 			if (nDotL > 0) {
 				sum += light->intensity * nDotL / (length(normal) * length(L));
 			}
+			//continue;
+			if (specular <= 0) continue;
+
+			float4 r = ReflectRay(L, normal);
+			float rDotV = dot (r, view);
+			if (rDotV > 0)
+			{
+				sum += light->intensity * pow(rDotV / (length(r) * length(view)), specular);
+
+				//var tmp = light.Intensity * Math.Pow(rDotV / (R.Lenght() * view.Lenght()), specular);
+				//i += (double)tmp;
+			}
 		}
 	}
 	return sum;
 }
 
-
-float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
-	__constant rt_scene *scene)
-{
-	float closest_t = INFINITY;
+void ClosestIntersection(float4 o, float4 d, double tMin, double tMax, __constant rt_scene *scene, float *t, int *sphereIndex) {
+	float closest = INFINITY;
 	int sphere_index = -1;
 
 	for (int i = 0; i < scene->sphere_count; i++)
 	{
 		float t = IntersectRaySphere(o, d, tMin, scene->spheres + i);
 
-		if (t >= tMin && t <= tMax && t < closest_t)
+		if (t >= tMin && t <= tMax && t < closest)
 		{
-			closest_t = t;
+			closest = t;
 			sphere_index = i;
 		}
 	}
 
-	if (sphere_index == -1)
+	*t = closest;
+	*sphereIndex = sphere_index;
+}
+
+float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
+	__constant rt_scene *scene)
+{
+	if (scene->reflect_depth == 0) return (float4)(0,0,0,0);
+
+	float closest;
+	int sphere_index;
+
+	float4 colors[MAX_RECURSION_DEPTH];
+    float reflects[MAX_RECURSION_DEPTH];
+
+	int recursionCount = 0;
+	//float4 recent;
+
+	for (int j = 0; j < scene->reflect_depth; j++)
 	{
-		return scene->bg_color;
+		// if (i == 1) {
+		// 	//ClosestIntersection(o, d, tMin, tMax, scene, &closest, &sphere_index);
+		// 	break;
+		// } else {
+		// 	ClosestIntersection(o, d, tMin, tMax, scene, &closest, &sphere_index);
+		// }
+		// if (i == 1) break;
+		//ClosestIntersection(o, d, tMin, tMax, scene, &closest, &sphere_index);
+
+
+		//if (j == 1) break;
+		float closest = INFINITY;
+		int sphere_index = -1;
+		
+		for (int i = 0; i < scene->sphere_count; i++)
+		{
+			
+			float t = IntersectRaySphere(o, d, tMin, scene->spheres + i);
+
+			if (t >= tMin && t <= tMax && t < closest)
+			{
+				closest = t;
+				sphere_index = i;
+			}
+		}
+		//if (i == 1) break;
+		// *t = closest;
+		// *sphereIndex = sphere_index;
+
+		/////////////////////////////////
+		
+		if (sphere_index == -1)
+		{
+			colors[recursionCount] = scene->bg_color;
+			reflects[recursionCount] = 0;
+			++recursionCount;
+			break;
+		}
+		//if (i == 1) break;
+		__constant rt_sphere *sphere = scene->spheres+sphere_index;
+		float4 p = o + (d * closest);
+		float4 normal = normalize(p - sphere->center);
+
+		//good for surfaces, bad for box, sphere
+		// if (dot(normal, d) > 0)
+		// {
+		// 	normal = -normal;
+		// }
+		float4 view = -d;
+		colors[recursionCount] = sphere->color * ComputeLighting(p, normal, scene->light_count, scene->lights, view, sphere->specular);
+		//colors[i] = (float4)(0,0,1,0);
+		reflects[recursionCount] = sphere->reflect;
+		++recursionCount;
+		if (sphere->reflect <= 0 || scene->reflect_depth == 1)
+			break;
+
+		//if (i < scene->reflect_depth - 1) {
+			//setup for next iteration
+			 o = p;
+			 float4 tmd = (float4) normal * (2 * dot(view, normal)) - view;// ReflectRay(view, normal);
+			 tMin = 0.001f;
+			 tMax = INFINITY;
+			 d = (float4)(1,1,1,0);
+			 d = tmd;
+		//}
+		//break;
+	}
+	// if (true) {
+		//for (int i = 0; i < 10; i++)
+	 	//ClosestIntersection(o, d, tMin, tMax, scene, &closest, &sphere_index);
+	// }
+	//return colors[0];
+
+	if (recursionCount <= 1)
+	 	return colors[0];
+
+	 float4 totalColor = colors[recursionCount - 1];
+	// if (i == 1 || scene->reflect_depth == 1)
+	// 	return totalColor;
+
+	for(int i = recursionCount - 2; i >= 0; i--)
+	{
+		float reflect = reflects[i];
+		float4 prevColor = colors[i];
+		totalColor = prevColor * (1 - reflect) + totalColor * reflect;
 	}
 
-	float4 P = o + (d * closest_t);
-	float4 normal = normalize(P - scene->spheres[sphere_index].center);
-
-	//good for surfaces, bad for box, sphere
-	if (dot(normal, d) > 0)
-	{
-		normal = -normal;
-	}
-
-	return scene->spheres[sphere_index].color * ComputeLighting(P, normal, scene->light_count, scene->lights);
+	return totalColor;
 }
 
 __kernel void rt(

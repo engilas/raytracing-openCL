@@ -7,6 +7,8 @@ typedef struct {
 	cl_float4 center;
 	cl_float4 color;
 	cl_float radius;
+	cl_float reflect;
+	cl_int specular;
 } rt_sphere;
 
 typedef enum { Ambient, Point, Direct } lightType;
@@ -26,6 +28,7 @@ typedef struct {
 	cl_float viewport_width;
 	cl_float viewport_height;
 	cl_float viewport_dist;
+	cl_int reflect_depth;
 
 	cl_int sphere_count;
 	cl_int light_count;
