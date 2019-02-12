@@ -162,9 +162,9 @@ float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
 	}
 
 	float4 P = o + (d * closest_t);
-	float4 normal = P - scene->spheres[sphere_index].center;
-	normal = normal / length(normal);
+	float4 normal = normalize(P - scene->spheres[sphere_index].center);
 
+	//good for surfaces, bad for box, sphere
 	if (dot(normal, d) > 0)
 	{
 		normal = -normal;
