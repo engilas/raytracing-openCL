@@ -37,8 +37,8 @@ typedef struct {
 
 	quaternion camera_rotation;
 
-	rt_sphere spheres[32];
-	rt_light lights[32];
+	rt_sphere spheres[64];
+	rt_light lights[16];
 } rt_scene;
 
 quaternion multiplyQuaternion(quaternion *q1, quaternion *q2) {
@@ -75,9 +75,6 @@ float4 CanvasToViewport(float x, float y, __constant rt_scene* scene)
 		y * scene->viewport_height / scene->canvas_height,
 		scene->viewport_dist,
 		0);
-
-
-
 	return Rotate(&scene->camera_rotation, &result);
 }
 
@@ -118,7 +115,6 @@ float IntersectRaySphere(float4 o, float4 d, float tMin, __constant rt_sphere* s
 }
 
 float4 ReflectRay(float4 r, float4 normal) {
-	//return normal * (2 * dot(r, normal)) - r; // normal.Multiply(2 * r.DotProduct(normal)).Subtract(r);
 	return 2*normal*dot(r, normal) - r;
 }
 
@@ -151,16 +147,13 @@ float ComputeLighting(float4 point, float4 normal, int lightCount, __constant rt
 			if (rDotV > 0)
 			{
 				sum += light->intensity * pow(rDotV / (length(r) * length(view)), specular);
-
-				//var tmp = light.Intensity * Math.Pow(rDotV / (R.Lenght() * view.Lenght()), specular);
-				//i += (double)tmp;
 			}
 		}
 	}
 	return sum;
 }
 
-void ClosestIntersection(float4 o, float4 d, double tMin, double tMax, __constant rt_scene *scene, float *t, int *sphereIndex) {
+void ClosestIntersection(float4 o, float4 d, float tMin, float tMax, __constant rt_scene *scene, float *t, int *sphereIndex) {
 	float closest = INFINITY;
 	int sphere_index = -1;
 
@@ -191,40 +184,10 @@ float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
     float reflects[MAX_RECURSION_DEPTH];
 
 	int recursionCount = 0;
-	//float4 recent;
 
-	for (int j = 0; j < scene->reflect_depth; j++)
+	for (int i = 0; i < scene->reflect_depth; i++)
 	{
-		// if (i == 1) {
-		// 	//ClosestIntersection(o, d, tMin, tMax, scene, &closest, &sphere_index);
-		// 	break;
-		// } else {
-		// 	ClosestIntersection(o, d, tMin, tMax, scene, &closest, &sphere_index);
-		// }
-		// if (i == 1) break;
-		//ClosestIntersection(o, d, tMin, tMax, scene, &closest, &sphere_index);
-
-
-		//if (j == 1) break;
-		float closest = INFINITY;
-		int sphere_index = -1;
-		
-		for (int i = 0; i < scene->sphere_count; i++)
-		{
-			
-			float t = IntersectRaySphere(o, d, tMin, scene->spheres + i);
-
-			if (t >= tMin && t <= tMax && t < closest)
-			{
-				closest = t;
-				sphere_index = i;
-			}
-		}
-		//if (i == 1) break;
-		// *t = closest;
-		// *sphereIndex = sphere_index;
-
-		/////////////////////////////////
+		ClosestIntersection(o, d, tMin, tMax, scene, &closest, &sphere_index);
 		
 		if (sphere_index == -1)
 		{
@@ -233,7 +196,6 @@ float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
 			++recursionCount;
 			break;
 		}
-		//if (i == 1) break;
 		__constant rt_sphere *sphere = scene->spheres+sphere_index;
 		float4 p = o + (d * closest);
 		float4 normal = normalize(p - sphere->center);
@@ -245,35 +207,22 @@ float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
 		// }
 		float4 view = -d;
 		colors[recursionCount] = sphere->color * ComputeLighting(p, normal, scene->light_count, scene->lights, view, sphere->specular);
-		//colors[i] = (float4)(0,0,1,0);
 		reflects[recursionCount] = sphere->reflect;
 		++recursionCount;
 		if (sphere->reflect <= 0 || scene->reflect_depth == 1)
 			break;
 
-		//if (i < scene->reflect_depth - 1) {
+		if (i < scene->reflect_depth - 1) {
 			//setup for next iteration
-			 o = p;
-			 float4 tmd = (float4) normal * (2 * dot(view, normal)) - view;// ReflectRay(view, normal);
-			 tMin = 0.001f;
-			 tMax = INFINITY;
-			 d = (float4)(1,1,1,0);
-			 d = tmd;
-		//}
-		//break;
+			o = p;
+			d = ReflectRay(view, normal);
+		}
 	}
-	// if (true) {
-		//for (int i = 0; i < 10; i++)
-	 	//ClosestIntersection(o, d, tMin, tMax, scene, &closest, &sphere_index);
-	// }
-	//return colors[0];
 
 	if (recursionCount <= 1)
 	 	return colors[0];
 
-	 float4 totalColor = colors[recursionCount - 1];
-	// if (i == 1 || scene->reflect_depth == 1)
-	// 	return totalColor;
+	float4 totalColor = colors[recursionCount - 1];
 
 	for(int i = recursionCount - 2; i >= 0; i--)
 	{
@@ -286,19 +235,20 @@ float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
 }
 
 __kernel void rt(
-	__constant rt_scene *scene,
+	__constant __read_only rt_scene *scene,
 	__write_only image2d_t output)
 {
-	const int xEdge = (int)round(scene->canvas_width / 2.0);
-	const int yEdge = (int)round(scene->canvas_height / 2.0);
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
-	const int xCartesian = x - xEdge;
-	const int yCartesian = yEdge - y;
+	const int width = scene->canvas_width;
+	const int height = scene->canvas_height;
 
-	const float4 d = CanvasToViewport(xCartesian, yCartesian, scene);
+	if (x >= width || y >= height) return;
+	int xCartesian = x - width / 2.0f;
+	int yCartesian = height / 2.0f - y;
 
-	float4 color = TraceRay(scene->camera_pos, d, 1, INFINITY, scene);
+	float4 d = CanvasToViewport(xCartesian, yCartesian, scene);
+	float4 color = TraceRay(scene->camera_pos, d, 0.001f, INFINITY, scene);
 
 	write_imagef(output, (int2)(x, y), color);
 }

@@ -135,16 +135,18 @@ rt_scene create_scene(int width, int height)
 	/*spheres.push_back(create_spheres({ 2,0,4 }, { 0,1,0 }, 1, 10, 0.2f));
 	spheres.push_back(create_spheres({ -2,0,4 }, { 0,0,1 }, 1, 500, 0.3f));
 	spheres.push_back(create_spheres({ 0,-1,3 }, { 1,0,0 }, 1, 500, 0.4f));*/
-	for (cl_float x = 0; x < 6; x++)
-	for (cl_float z = 0; z < 5; z++)
+	for (cl_float x = 0.2; x < 8; x++)
+	for (cl_float y = 0; y < 2; y++)
+	for (cl_float z = 0; z < 4; z++)
 	{
 		cl_float r = (cl_float)rand() / (cl_float)RAND_MAX;
 		cl_float g = (cl_float)rand() / (cl_float)RAND_MAX;
 		cl_float b = (cl_float)rand() / (cl_float)RAND_MAX;
 		cl_float reflect = (cl_float)rand() / (cl_float)RAND_MAX;
-		cl_int specular = rand() % 1000;
+		cl_int specular = rand() % 500;
+		//reflect = 0.02;
 
-		spheres.push_back(create_spheres({ x - 3, -1, z - 2.5f }, { r,g,b }, 0.4f, specular, reflect));
+		spheres.push_back(create_spheres({ x - 3, y, z - 2.5f }, { r,g,b }, 0.4f, specular, reflect));
 	}
 
 	lights.push_back(create_light(Ambient, 0.2f, { 0 }, { 0 }));
@@ -159,8 +161,8 @@ rt_scene create_scene(int width, int height)
     scene.viewport_dist = 1;
     scene.viewport_height = height / (cl_float) min;
     scene.viewport_width = width / (cl_float) min;
-	scene.bg_color = { 0.1,0,0 };
-	scene.reflect_depth = 2;
+	scene.bg_color = { 1,1,1 };
+	scene.reflect_depth = 3;
 
     scene.sphere_count = spheres.size();
 	scene.light_count = lights.size();
@@ -321,7 +323,7 @@ int main()
 
     glfwSetErrorCallback(glfw_error_callback);
 
-    window = glfwCreateWindow(wind_width,wind_height,"RT", NULL,NULL);
+    window = glfwCreateWindow(wind_width,wind_height,"RT", monitor,NULL);
     if (!window) {
         glfwTerminate();
         return 254;
@@ -474,6 +476,11 @@ int main()
     return 0;
 }
 
+inline unsigned divup(unsigned a, unsigned b)
+{
+	return (a + b - 1) / b;
+}
+
 void processTimeStep(double frameRate)
 {
     cl::Event ev;
@@ -491,13 +498,14 @@ void processTimeStep(double frameRate)
             exit(248);
         }
         
-        NDRange global(wind_width, wind_height);
+		NDRange local(16,16);
+		NDRange global(local[0] * divup(wind_width, local[0]),local[1] * divup(wind_height, local[1]));
 
 		UpdateScene(params.scene, frameRate);
 
 		params.q.enqueueWriteBuffer(params.sceneMem, CL_TRUE, 0, sizeof(rt_scene), &params.scene, NULL, NULL);
 
-        params.q.enqueueNDRangeKernel(params.k,cl::NullRange, global, cl::NullRange);
+        params.q.enqueueNDRangeKernel(params.k,cl::NullRange, global, local);
         // release opengl object
         res = params.q.enqueueReleaseGLObjects(&objs);
         ev.wait();

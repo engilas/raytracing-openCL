@@ -35,8 +35,8 @@ typedef struct {
 
 	quaternion camera_rotation;
 
-	rt_sphere spheres[32];
-	rt_light lights[32];
+	rt_sphere spheres[64];
+	rt_light lights[16];
 } rt_scene;
 
 #endif
