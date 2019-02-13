@@ -1,4 +1,6 @@
 #define MAX_RECURSION_DEPTH 5
+#define SHADOW_ENABLED 1
+#define T_MIN 0.05f
 
 typedef struct {
 	float w;
@@ -118,41 +120,6 @@ float4 ReflectRay(float4 r, float4 normal) {
 	return 2*normal*dot(r, normal) - r;
 }
 
-float ComputeLighting(float4 point, float4 normal, int lightCount, __constant rt_light *lights, float4 view, int specular)
-{
-	float sum = 0;
-	float4 L;
-
-	for (int i = 0; i < lightCount; i++)
-	{
-		__constant rt_light *light = lights + i;
-		if (light->type == Ambient) {
-			sum += light->intensity;
-		}
-		else {
-			if (light->type == Point)
-				L = light->position - point;
-			if (light->type == Direct)
-				L = light->direction;
-
-			float nDotL = dot(normal, L);
-			if (nDotL > 0) {
-				sum += light->intensity * nDotL / (length(normal) * length(L));
-			}
-			//continue;
-			if (specular <= 0) continue;
-
-			float4 r = ReflectRay(L, normal);
-			float rDotV = dot (r, view);
-			if (rDotV > 0)
-			{
-				sum += light->intensity * pow(rDotV / (length(r) * length(view)), specular);
-			}
-		}
-	}
-	return sum;
-}
-
 void ClosestIntersection(float4 o, float4 d, float tMin, float tMax, __constant rt_scene *scene, float *t, int *sphereIndex) {
 	float closest = INFINITY;
 	int sphere_index = -1;
@@ -170,6 +137,53 @@ void ClosestIntersection(float4 o, float4 d, float tMin, float tMax, __constant 
 
 	*t = closest;
 	*sphereIndex = sphere_index;
+}
+
+float ComputeLighting(float4 point, float4 normal, __constant rt_scene *scene, float4 view, int specular)
+{
+	float sum = 0;
+	float4 L;
+
+	for (int i = 0; i < scene->light_count; i++)
+	{
+		__constant rt_light *light = scene->lights + i;
+		if (light->type == Ambient) {
+			sum += light->intensity;
+		}
+		else {
+			float tMax = 0;
+			if (light->type == Point) {
+				L = light->position - point;
+				tMax = 1;
+			}
+			if (light->type == Direct) {
+				L = light->direction;
+				tMax = INFINITY;
+			}
+
+			//#ifdef SHADOW_ENABLED
+			int sphereIndex;
+			float t;
+			ClosestIntersection(point, L, T_MIN, tMax, scene, &t, &sphereIndex);
+			if (sphereIndex != -1) continue;
+			//#endif
+
+			float nDotL = dot(normal, L);
+			if (nDotL > 0) {
+				sum += light->intensity * nDotL / (length(normal) * length(L));
+			}
+
+			if (specular <= 0) continue;
+
+			float4 r = ReflectRay(L, normal);
+			float rDotV = dot (r, view);
+			if (rDotV > 0)
+			{
+				sum += light->intensity * pow(rDotV / (length(r) * length(view)), specular);
+			}
+		}
+	}
+	return sum;
 }
 
 float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
@@ -206,7 +220,7 @@ float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
 		// 	normal = -normal;
 		// }
 		float4 view = -d;
-		colors[recursionCount] = sphere->color * ComputeLighting(p, normal, scene->light_count, scene->lights, view, sphere->specular);
+		colors[recursionCount] = sphere->color * ComputeLighting(p, normal, scene, view, sphere->specular);
 		reflects[recursionCount] = sphere->reflect;
 		++recursionCount;
 		if (sphere->reflect <= 0 || scene->reflect_depth == 1)
@@ -248,7 +262,7 @@ __kernel void rt(
 	int yCartesian = height / 2.0f - y;
 
 	float4 d = CanvasToViewport(xCartesian, yCartesian, scene);
-	float4 color = TraceRay(scene->camera_pos, d, 0.001f, INFINITY, scene);
+	float4 color = TraceRay(scene->camera_pos, d, T_MIN, INFINITY, scene);
 
 	write_imagef(output, (int2)(x, y), color);
 }

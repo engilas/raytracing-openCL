@@ -132,26 +132,29 @@ rt_scene create_scene(int width, int height)
 	std::vector<rt_sphere> spheres;
 	std::vector<rt_light> lights;
 
-	/*spheres.push_back(create_spheres({ 2,0,4 }, { 0,1,0 }, 1, 10, 0.2f));
+	spheres.push_back(create_spheres({ 2,0,4 }, { 0,1,0 }, 1, 10, 0.2f));
 	spheres.push_back(create_spheres({ -2,0,4 }, { 0,0,1 }, 1, 500, 0.3f));
-	spheres.push_back(create_spheres({ 0,-1,3 }, { 1,0,0 }, 1, 500, 0.4f));*/
-	for (cl_float x = 0.2; x < 8; x++)
-	for (cl_float y = 0; y < 2; y++)
-	for (cl_float z = 0; z < 4; z++)
-	{
-		cl_float r = (cl_float)rand() / (cl_float)RAND_MAX;
-		cl_float g = (cl_float)rand() / (cl_float)RAND_MAX;
-		cl_float b = (cl_float)rand() / (cl_float)RAND_MAX;
-		cl_float reflect = (cl_float)rand() / (cl_float)RAND_MAX;
-		cl_int specular = rand() % 500;
-		//reflect = 0.02;
+	spheres.push_back(create_spheres({ 0,-1,3 }, { 1,0,0 }, 1, 500, 0.4f));
+	spheres.push_back(create_spheres({ 0,-5001,3 }, { 1,1,0 }, 5000, 50, 0.2f));
+	//for (cl_float x = 0.2; x < 8; x++)
+	//for (cl_float y = 0; y < 2; y++)
+	//for (cl_float z = 0; z < 3; z++)
+	//{
+	//	cl_float r = (cl_float)rand() / (cl_float)RAND_MAX;
+	//	cl_float g = (cl_float)rand() / (cl_float)RAND_MAX;
+	//	cl_float b = (cl_float)rand() / (cl_float)RAND_MAX;
+	//	cl_float reflect = (cl_float)rand() / (cl_float)RAND_MAX;
+	//	cl_int specular = rand() % 500;
+	//	//reflect = 0.02;
 
-		spheres.push_back(create_spheres({ x - 3, y, z - 2.5f }, { r,g,b }, 0.4f, specular, reflect));
-	}
+	//	spheres.push_back(create_spheres({ x - 3, y, z - 2.5f }, { r,g,b }, 0.4f, specular, reflect));
+	//}
 
 	lights.push_back(create_light(Ambient, 0.2f, { 0 }, { 0 }));
 	lights.push_back(create_light(Point, 0.6f, { 2,1,0 }, { 0 }));
 	lights.push_back(create_light(Direct, 0.2f, { 0 }, { 1,4,4 }));
+
+	//spheres.push_back(create_spheres({ 2,1,0 }, { 1,1,1 }, 0.2, 0, 0));
 
 	rt_scene scene;
     memset(&scene, 0, sizeof(rt_scene));
@@ -161,7 +164,7 @@ rt_scene create_scene(int width, int height)
     scene.viewport_dist = 1;
     scene.viewport_height = height / (cl_float) min;
     scene.viewport_width = width / (cl_float) min;
-	scene.bg_color = { 1,1,1 };
+	scene.bg_color = { 0 };
 	scene.reflect_depth = 3;
 
     scene.sphere_count = spheres.size();
