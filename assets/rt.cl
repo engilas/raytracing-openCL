@@ -1,5 +1,5 @@
 #define MAX_RECURSION_DEPTH 5
-#define SHADOW_ENABLED 1
+#define SHADOW_ENABLED
 #define T_MIN 0.05f
 
 typedef struct {
@@ -161,12 +161,12 @@ float ComputeLighting(float4 point, float4 normal, __constant rt_scene *scene, f
 				tMax = INFINITY;
 			}
 
-			//#ifdef SHADOW_ENABLED
+			#ifdef SHADOW_ENABLED
 			int sphereIndex;
 			float t;
 			ClosestIntersection(point, L, T_MIN, tMax, scene, &t, &sphereIndex);
 			if (sphereIndex != -1) continue;
-			//#endif
+			#endif
 
 			float nDotL = dot(normal, L);
 			if (nDotL > 0) {
@@ -223,7 +223,7 @@ float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
 		colors[recursionCount] = sphere->color * ComputeLighting(p, normal, scene, view, sphere->specular);
 		reflects[recursionCount] = sphere->reflect;
 		++recursionCount;
-		if (sphere->reflect <= 0 || scene->reflect_depth == 1)
+		if (recursionCount >= MAX_RECURSION_DEPTH || sphere->reflect <= 0 || scene->reflect_depth == 1)
 			break;
 
 		if (i < scene->reflect_depth - 1) {
@@ -249,7 +249,7 @@ float4 TraceRay(float4 o, float4 d, float tMin, float tMax,
 }
 
 __kernel void rt(
-	__constant __read_only rt_scene *scene,
+	__constant rt_scene *scene,
 	__write_only image2d_t output)
 {
 	const int x = get_global_id(0);
