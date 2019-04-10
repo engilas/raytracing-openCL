@@ -1,5 +1,7 @@
 ### RayTracing implemented with OpenCL-OpenGL interop
 
+Early implementation of realtime GPU raytracing. See the newer project [raytracing-opengl](https://github.com/engilas/raytracing-opengl)
+
 #### Requirements
 
 * CMake (>= 3.0.2)
