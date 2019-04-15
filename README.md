@@ -2,6 +2,12 @@
 
 Early implementation of realtime GPU raytracing. See the newer project [raytracing-opengl](https://github.com/engilas/raytracing-opengl)
 
+### Render scenario:
+
+- OpenCL memory object is created from the OpenGL texture.
+- For every frame, the OpenCL memory object is acquired, then updated with an OpenCL kernel, and finally released to provide the updated texture data back to OpenGL.
+- For every frame, OpenGL renders textured Screen-Quad to display the results
+
 Scene setup in rt.cpp file, create_scene function.
 
 #### Controls:
