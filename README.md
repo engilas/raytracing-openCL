@@ -2,6 +2,8 @@
 
 Early implementation of realtime GPU raytracing. See the newer project [raytracing-opengl](https://github.com/engilas/raytracing-opengl)
 
+Scene setup in rt.cpp file, create_scene function.
+
 #### Controls:
 Rotate camera with mouse
 
